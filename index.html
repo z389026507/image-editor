@@ -2,103 +2,205 @@
 <html>
 <head>
     <title>在线图片编辑器</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         .container {
             display: flex;
             gap: 20px;
             padding: 20px;
+            background: #f0f0f0;
+            min-height: 100vh;
         }
+        
         #previewArea {
             width: 600px;
             height: 400px;
             position: relative;
-            border: 1px solid #ccc;
+            border: 2px dashed #ccc;
+            background: #fff;
         }
+        
         #backgroundImage {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
         }
+        
         .editable-text {
             position: absolute;
             color: white;
             font-size: 24px;
             cursor: move;
             max-width: 80%;
+            padding: 5px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            transition: all 0.3s;
         }
+        
         .controls {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 15px;
+            width: 300px;
+        }
+        
+        .control-group {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+        }
+        
+        button {
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div id="previewArea">
-            <img id="backgroundImage" src="默认背景图URL">
-            <div class="editable-text" contenteditable="true" 
-                 style="top: 50px; left: 50px">点击编辑文字</div>
+            <img id="backgroundImage" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="> <!-- 透明占位图 -->
+            <div class="editable-text" style="top: 50px; left: 50px">点击编辑文字</div>
         </div>
-        
+
         <div class="controls">
-            <input type="file" id="bgUpload" accept="image/*">
-            <button onclick="downloadImage()">导出图片</button>
-            <input type="color" id="textColor" onchange="updateTextStyle()">
-            <input type="number" id="fontSize" value="24" onchange="updateTextStyle()">
+            <div class="control-group">
+                <label>上传背景图：</label>
+                <input type="file" id="bgUpload" accept="image/*">
+            </div>
+            
+            <div class="control-group">
+                <label>文字内容：</label>
+                <input type="text" id="textContent" value="点击编辑文字" 
+                       oninput="document.querySelector('.editable-text').innerText = this.value">
+            </div>
+            
+            <div class="control-group">
+                <label>字号大小：12px</label>
+                <input type="range" id="fontSize" min="12" max="72" value="24"
+                       oninput="updateTextStyle(this.value)">
+                <output id="fontSizeValue">24px</output>
+            </div>
+            
+            <div class="control-group">
+                <label>文字颜色：</label>
+                <input type="color" id="textColor" value="#ffffff" onchange="updateTextStyle()">
+            </div>
+            
+            <div class="control-group">
+                <label>位置调整：</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <input type="number" id="posX" placeholder="X 坐标" onchange="updateTextPosition()">
+                    <input type="number" id="posY" placeholder="Y 坐标" onchange="updateTextPosition()">
+                </div>
+            </div>
+            
+            <button onclick="downloadImage()">导出图片 (PNG)</button>
         </div>
     </div>
 
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script>
+        // 初始化元素引用
+        const textElement = document.querySelector('.editable-text');
+        const fontSizeInput = document.getElementById('fontSize');
+        const fontSizeValue = document.getElementById('fontSizeValue');
+
         // 背景图片上传
         document.getElementById('bgUpload').addEventListener('change', function(e) {
             const file = e.target.files[0];
+            if (!file) return;
+
             const reader = new FileReader();
-            reader.onload = function(event) {
+            reader.onload = (event) => {
                 document.getElementById('backgroundImage').src = event.target.result;
             };
             reader.readAsDataURL(file);
         });
 
-        // 文字样式修改
-        function updateTextStyle() {
-            const textElement = document.querySelector('.editable-text');
+        // 文字样式更新
+        function updateTextStyle(size = fontSizeInput.value) {
+            textElement.style.fontSize = `${size}px`;
             textElement.style.color = document.getElementById('textColor').value;
-            textElement.style.fontSize = document.getElementById('fontSize').value + 'px';
+            fontSizeValue.textContent = `${size}px`;
         }
 
-        // 导出图片
+        // 文字位置更新
+        function updateTextPosition() {
+            const x = document.getElementById('posX').value || 0;
+            const y = document.getElementById('posY').value || 0;
+            textElement.style.left = `${x}px`;
+            textElement.style.top = `${y}px`;
+        }
+
+        // 拖拽功能实现
+        let isDragging = false;
+        let startX, startY, initialX, initialY;
+
+        textElement.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            textElement.style.cursor = 'grabbing';
+            startX = e.clientX;
+            startY = e.clientY;
+            initialX = textElement.offsetLeft;
+            initialY = textElement.offsetTop;
+            
+            // 更新坐标输入框
+            document.getElementById('posX').value = initialX;
+            document.getElementById('posY').value = initialY;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            textElement.style.left = `${initialX + deltaX}px`;
+            textElement.style.top = `${initialY + deltaY}px`;
+            
+            // 实时更新坐标显示
+            document.getElementById('posX').value = Math.round(initialX + deltaX);
+            document.getElementById('posY').value = Math.round(initialY + deltaY);
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            textElement.style.cursor = 'move';
+        });
+
+        // 导出图片功能
         function downloadImage() {
-            html2canvas(document.querySelector("#previewArea")).then(canvas => {
+            html2canvas(document.querySelector("#previewArea"), {
+                logging: false,
+                useCORS: true,
+                scale: 2 // 提高导出图片清晰度
+            }).then(canvas => {
                 const link = document.createElement('a');
-                link.download = 'custom-image.png';
-                link.href = canvas.toDataURL();
+                link.download = 'custom-design.png';
+                link.href = canvas.toDataURL('image/png', 1.0);
                 link.click();
             });
         }
 
-        // 实现拖拽功能
-        let draggedElement = null;
-        document.querySelectorAll('.editable-text').forEach(element => {
-            element.addEventListener('mousedown', function(e) {
-                draggedElement = e.target;
-                initialX = e.clientX - draggedElement.offsetLeft;
-                initialY = e.clientY - draggedElement.offsetTop;
-            });
-        });
-
-        document.addEventListener('mousemove', function(e) {
-            if (draggedElement) {
-                draggedElement.style.left = (e.clientX - initialX) + 'px';
-                draggedElement.style.top = (e.clientY - initialY) + 'px';
-            }
-        });
-
-        document.addEventListener('mouseup', function() {
-            draggedElement = null;
-        });
+        // 初始化坐标显示
+        updateTextPosition();
     </script>
 </body>
 </html>
